@@ -110,3 +110,24 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm verify:fix
+
+  real-causes:
+    name: ${{ matrix.layer }} · ${{ matrix.os }} · node-${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [22, 24, 26]
+        layer: [signing-stall, slow-scaling]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm verify:${{ matrix.layer }}
