@@ -1,5 +1,5 @@
 #!/bin/bash
-# Layer 7 — REAL production cause #2: slow type-aware execution mistaken for a hang.
+# Layer 5 — REAL production cause: slow type-aware execution mistaken for a hang.
 #
 # The dominant real cause of "commits that seemed to hang" in Joe's corpus
 # (23 of 33 deep-dived long events) was simply slow work inside the hook:

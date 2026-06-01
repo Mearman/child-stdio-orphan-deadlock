@@ -9,9 +9,8 @@
     "verify:iterator": "scripts/verify-iterator.sh",
     "verify:fix": "scripts/verify-fix.sh",
     "verify:lint-staged": "scripts/verify-lint-staged.sh",
-    "verify:signing-stall": "scripts/verify-signing-stall.sh",
     "verify:slow-scaling": "scripts/verify-slow-scaling.sh",
-    "verify": "scripts/verify-spawn.sh && scripts/verify-iterator.sh && scripts/verify-fix.sh && scripts/verify-lint-staged.sh && scripts/verify-signing-stall.sh && scripts/verify-slow-scaling.sh"
+    "verify": "scripts/verify-spawn.sh && scripts/verify-iterator.sh && scripts/verify-fix.sh && scripts/verify-lint-staged.sh && scripts/verify-slow-scaling.sh"
   },
   "devDependencies": {
     "lint-staged": "latest",

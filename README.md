@@ -52,30 +52,23 @@ Layers 1-4 is genuine, but it has no in-the-wild trigger in my usage. No
 eslint plugin in the repos I checked (traced fleetforge, guild, and a
 `@graphql-eslint` config directly) spawns any subprocess during a lint.
 
-What the "hangs" actually were, in order of impact:
+The dominant cause was **slow type-aware execution (~23 of 33).**
+`eslint` with `projectService` + `strictTypeChecked`, plus `vitest`,
+plus `tsc --noEmit`, run serially in the hook, take 90s-9min on large
+TypeScript codebases. The commit always lands; the agent never noticed
+a "hang" because there wasn't one. Reproduced in **Layer 5**: commit
+wall-time scales with staged-file count and every commit completes,
+which is the signature of slowness, not a deadlock.
 
-1. **Slow type-aware execution (the dominant cause, ~23 of 33).**
-   `eslint` with `projectService` + `strictTypeChecked`, plus `vitest`,
-   plus `tsc --noEmit`, run serially in the hook, take 90s-9min on large
-   TypeScript codebases. The commit always lands; the agent never noticed
-   a "hang" because there wasn't one. Reproduced in **Layer 7**: commit
-   wall-time scales with staged-file count and every commit completes,
-   which is the signature of slowness, not a deadlock.
-
-2. **1Password / SSH signing stalls (4 of 33).** lint-staged finishes
-   cleanly (`[COMPLETED] Cleaning up temporary files...`), then `git`
-   stalls waiting for the SSH signing agent until a timeout fires, and
-   the commit never lands. This produces a fingerprint that looks exactly
-   like a lint-staged wedge but is nothing to do with lint-staged.
-   Reproduced deterministically in **Layer 6** with a fake stalled signer.
-
-3. **Timestamp artifacts (1 of 33).** One 2-hour outlier was a subagent
-   whose log timestamp reflected parent-orchestrator delivery, not bash
-   time; the real lint-staged run was ~4s.
+A single 2-hour outlier was a **timestamp artifact** (a subagent whose
+log timestamp reflected parent-orchestrator delivery, not bash time; the
+real lint-staged run was ~4s). The remaining few were auth/environment
+issues at the `git` layer, unrelated to lint-staged or tinyexec and out
+of scope here.
 
 So the original #1800 report ("commits hang on the husky hook") was a
 misattribution. The mechanism I built the MRE for is real, but in my own
-usage the hangs were slow type-checking and a flaky signing agent.
+usage the hangs were slow type-checking, not the orphan-stdio deadlock.
 
 The earlier `<&-` workaround I applied (closing fd 0 on hook commands)
 "worked" by coincidence of timing, not by breaking a deadlock that was
@@ -88,9 +81,9 @@ there is nothing to fix in lint-staged or tinyexec for it.
 ## Layers
 
 The theoretical wedge mechanism (Layers 1-4) and the actual production
-causes (Layers 6-7) are reproduced separately, because they are different
-things. The wedge is real but never fired; the slow execution and signing
-stall are what actually happened.
+cause (Layer 5) are reproduced separately, because they are different
+things. The wedge is real but never fired; slow execution is what actually
+happened.
 
 | Layer | What it shows | Script |
 |-------|---------------|--------|
@@ -98,8 +91,7 @@ stall are what actually happened.
 | 2 | tinyexec's async iterator wedges on the orphan-pipe pattern across every version except 1.2.3 | `verify-iterator.sh` |
 | 3 | A per-task idle-timeout guard at the consumer layer breaks the deadlock | `verify-fix.sh` |
 | 4 | The lint-staged → tinyexec chain wedges on every released pair, including 1.2.3 | `verify-lint-staged.sh` |
-| 6 | **Real cause: signing stall.** lint-staged completes, then git signing hangs and times out (looks like a wedge, isn't) | `verify-signing-stall.sh` |
-| 7 | **Real cause: slow execution.** commit time scales with staged work and always completes (slow, not wedged) | `verify-slow-scaling.sh` |
+| 5 | **Real cause: slow execution.** commit time scales with staged work and always completes (slow, not wedged) | `verify-slow-scaling.sh` |
 
 Reproduce everything:
 
@@ -108,8 +100,8 @@ pnpm install
 pnpm verify
 ```
 
-Layers 1-4 demonstrate the mechanism that *could* cause #1800. Layers 6-7
-reproduce what *actually* caused the hangs in real usage (see "What the
+Layers 1-4 demonstrate the mechanism that *could* cause #1800. Layer 5
+reproduces what *actually* caused the hangs in real usage (see "What the
 hangs actually were" above).
 
 ## Layer 1: bare Node
@@ -206,29 +198,7 @@ This is the key reason the upstream destroy-on-exit fix was a dead
 end for this scenario. The guard has to fire on lack-of-progress, not
 on exit.
 
-## Layer 6: signing stall (real cause #1)
-
-`scripts/verify-signing-stall.sh` builds a throwaway repo with husky +
-lint-staged and a fake SSH signing program that sleeps. The commit runs
-lint-staged to full completion, then git stalls in signing until a
-timeout fires.
-
-```
-[STARTED] Backing up original state...
-...
-[STARTED] Cleaning up temporary files...
-[COMPLETED] Cleaning up temporary files...
-(command times out here; commit does not land)
-```
-
-This is the fingerprint that looked like an orphan-stdio wedge in the
-session logs: lint-staged prints its complete sequence, then the command
-never returns. The stall is in `git`'s signing step, after lint-staged
-has exited. No 1Password needed; the fake signer reproduces it
-deterministically. PASS asserts lint-staged completed, the command timed
-out, and the commit did not land.
-
-## Layer 7: slow execution (real cause #2)
+## Layer 5: slow execution (the real cause)
 
 `scripts/verify-slow-scaling.sh` builds a repo with type-aware ESLint
 (`projectService` + `strictTypeChecked`) plus `tsc --noEmit` in the
