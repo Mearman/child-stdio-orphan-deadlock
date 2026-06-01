@@ -19,7 +19,9 @@ TX_VERSION="${TINYEXEC_VERSION:-1.1.2}"
 EXPECT="${EXPECT:-WEDGED}"
 TIMEOUT_S="${TIMEOUT_S:-15}"
 
-FIXTURES="$(cd "$(dirname "$0")/.." && pwd)/fixtures"
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+FIXTURES="$PROJECT_ROOT/fixtures"
+TIMEOUT="$PROJECT_ROOT/scripts/timeout.mjs"
 
 cleanup() {
   pkill -KILL -f 'setTimeout.*1000.*60.*60' 2>/dev/null || true
@@ -80,10 +82,11 @@ git commit -q -m initial
 echo "var x = 2;" > target.js
 git add target.js
 
-# Run lint-staged with a hard timeout. Capture last meaningful line.
+# Run lint-staged with a hard timeout. Uses the portable timeout
+# wrapper because macOS runners lack GNU coreutils' `timeout`.
 OUT=$(mktemp)
 START=$(date +%s)
-timeout "$TIMEOUT_S" node node_modules/lint-staged/bin/lint-staged.js --debug >"$OUT" 2>&1
+node "$TIMEOUT" "$TIMEOUT_S" node node_modules/lint-staged/bin/lint-staged.js --debug >"$OUT" 2>&1
 EC=$?
 END=$(date +%s)
 ELAPSED=$((END - START))

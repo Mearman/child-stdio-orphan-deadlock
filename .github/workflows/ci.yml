@@ -31,25 +31,19 @@ jobs:
       - run: pnpm verify:spawn
 
   iterator:
-    name: iterator · tinyexec-${{ matrix.tinyexec }} · ${{ matrix.os }} · node-${{ matrix.node }}
+    name: iterator · tinyexec-${{ matrix.tx.version }} · ${{ matrix.os }} · node-${{ matrix.node }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         node: [22, 24, 26]
-        include:
-          - tinyexec: 1.0.4
-            expect: WEDGED
-          - tinyexec: 1.1.2
-            expect: WEDGED
-          - tinyexec: 1.2.2
-            expect: WEDGED
-          - tinyexec: 1.2.3
-            expect: COMPLETED
-          - tinyexec: 1.2.4
-            expect: WEDGED
-          - tinyexec: latest
-            expect: WEDGED
+        tx:
+          - { version: 1.0.4, expect: WEDGED }
+          - { version: 1.1.2, expect: WEDGED }
+          - { version: 1.2.2, expect: WEDGED }
+          - { version: 1.2.3, expect: COMPLETED }
+          - { version: 1.2.4, expect: WEDGED }
+          - { version: latest, expect: WEDGED }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     steps:
@@ -62,28 +56,23 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: pnpm install --no-frozen-lockfile
       - env:
-          TINYEXEC_VERSION: ${{ matrix.tinyexec }}
-          EXPECT: ${{ matrix.expect }}
+          TINYEXEC_VERSION: ${{ matrix.tx.version }}
+          EXPECT: ${{ matrix.tx.expect }}
         run: pnpm verify:iterator
 
   lint-staged:
-    name: lint-staged-${{ matrix.ls }} · tinyexec-${{ matrix.tx }} · ${{ matrix.os }} · node-${{ matrix.node }}
+    name: lint-staged-${{ matrix.pair.ls }} · tinyexec-${{ matrix.pair.tx }} · ${{ matrix.os }} · node-${{ matrix.node }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         node: [22, 24, 26]
-        include:
-          - ls: 16.4.0
-            tx: 1.1.2
-          - ls: 16.4.0
-            tx: 1.2.3
-          - ls: 16.4.0
-            tx: 1.2.4
-          - ls: 17.0.7
-            tx: 1.2.4
-          - ls: latest
-            tx: latest
+        pair:
+          - { ls: 16.4.0, tx: 1.1.2 }
+          - { ls: 16.4.0, tx: 1.2.3 }
+          - { ls: 16.4.0, tx: 1.2.4 }
+          - { ls: 17.0.7, tx: 1.2.4 }
+          - { ls: latest, tx: latest }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     steps:
@@ -96,8 +85,8 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: pnpm install --no-frozen-lockfile
       - env:
-          LINT_STAGED_VERSION: ${{ matrix.ls }}
-          TINYEXEC_VERSION: ${{ matrix.tx }}
+          LINT_STAGED_VERSION: ${{ matrix.pair.ls }}
+          TINYEXEC_VERSION: ${{ matrix.pair.tx }}
           EXPECT: WEDGED
           TIMEOUT_S: "15"
         run: pnpm verify:lint-staged
