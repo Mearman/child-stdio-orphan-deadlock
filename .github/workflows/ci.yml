@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PNPM_VERSION: "10.33.1"
+
+jobs:
+  spawn:
+    name: spawn · ${{ matrix.os }} · node-${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [22, 24, 26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm verify:spawn
+
+  iterator:
+    name: iterator · tinyexec-${{ matrix.tinyexec }} · ${{ matrix.os }} · node-${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [22, 24, 26]
+        include:
+          - tinyexec: 1.0.4
+            expect: WEDGED
+          - tinyexec: 1.1.2
+            expect: WEDGED
+          - tinyexec: 1.2.2
+            expect: WEDGED
+          - tinyexec: 1.2.3
+            expect: COMPLETED
+          - tinyexec: 1.2.4
+            expect: WEDGED
+          - tinyexec: latest
+            expect: WEDGED
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm install --no-frozen-lockfile
+      - env:
+          TINYEXEC_VERSION: ${{ matrix.tinyexec }}
+          EXPECT: ${{ matrix.expect }}
+        run: pnpm verify:iterator
+
+  lint-staged:
+    name: lint-staged-${{ matrix.ls }} · tinyexec-${{ matrix.tx }} · ${{ matrix.os }} · node-${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [22, 24, 26]
+        include:
+          - ls: 16.4.0
+            tx: 1.1.2
+          - ls: 16.4.0
+            tx: 1.2.3
+          - ls: 16.4.0
+            tx: 1.2.4
+          - ls: 17.0.7
+            tx: 1.2.4
+          - ls: latest
+            tx: latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm install --no-frozen-lockfile
+      - env:
+          LINT_STAGED_VERSION: ${{ matrix.ls }}
+          TINYEXEC_VERSION: ${{ matrix.tx }}
+          EXPECT: WEDGED
+          TIMEOUT_S: "15"
+        run: pnpm verify:lint-staged
+
+  fix:
+    name: fix · ${{ matrix.os }} · node-${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [22, 24, 26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm verify:fix
