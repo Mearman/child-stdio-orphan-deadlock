@@ -20,6 +20,51 @@ relevant versions, demonstrates why the partial fix that shipped as
 tinyexec 1.2.3 doesn't help the real lint-staged case, and shows the
 consumer-side guard pattern that does work.
 
+## What happened
+
+I hit it as a user. `git commit` in real repos would freeze on the
+husky hook indefinitely. No error, no progress, no path out except
+killing the terminal.
+
+Filed [lint-staged#1800](https://github.com/lint-staged/lint-staged/issues/1800)
+blaming typescript-eslint's `projectService` for spawning `tsserver`.
+That was wrong. `projectService` runs in-process; it doesn't spawn
+anything that could hold pipes open. I retracted the claim in the
+thread once iiroj couldn't reproduce it.
+
+What we actually identified: any code inside eslint that calls
+`child_process.spawn(...)` without `.unref()` creates the same
+deadlock. The synthetic plugin in this repo is a stand-in for that
+shape. We never pinned down which specific plugin was the trigger in
+the repos where I saw it. In practice the production trigger was a
+stdin-reading grandchild rather than a stdout-holding one, but the
+mechanism is the same: the grandchild keeps the linter's event loop
+alive, the linter never exits, tinyexec's pipes never EOF,
+lint-staged's iterator wedges.
+
+Current state as of this writing:
+
+- lint-staged 17.0.7 ships with tinyexec ^1.2.4. Both wedge on this
+  pattern. See Layer 4.
+- The destroy-on-exit fix that shipped as tinyexec 1.2.3 was reverted
+  in 1.2.4 after it broke things on Linux. Even before the revert it
+  didn't help the lint-staged case, because eslint never exits when
+  the orphan holds its event loop alive (Layer 4 vs Layer 2).
+- Both maintainers consider this a consumer/plugin issue. No upstream
+  fix is being worked on.
+
+If you're hitting this as a user today:
+
+- The actual fix that worked for us was closing fd 0 on every
+  `pnpm`/`node`/`turbo` invocation in `.husky/pre-commit` with `<&-`.
+  Drops stdin inheritance so any descendant trying to read from it
+  gets immediate EOF and exits.
+- Or skip the hook entirely with `git commit --no-verify` (no
+  linting).
+- Or move the lint out of the pre-commit hook (CI-only linting).
+- Or file against the plugin once you've identified which one is
+  spawning the orphan.
+
 ## Layers
 
 | Layer | What it shows | Script |
