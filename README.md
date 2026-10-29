@@ -1,5 +1,7 @@
 # child-stdio-orphan-deadlock
 
+[![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white)](https://github.com/Mearman/child-stdio-orphan-deadlock) [![CI](https://img.shields.io/github/actions/workflow/status/Mearman/child-stdio-orphan-deadlock/ci.yml?branch=main)](https://github.com/Mearman/child-stdio-orphan-deadlock/actions)
+
 Minimal reproductions of a deadlock pattern that surfaces when a
 `child_process.spawn`'d Node process leaves behind a descendant that
 holds inherited stdio open. The parent's stream wrappers (tinyexec,
